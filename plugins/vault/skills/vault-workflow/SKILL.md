@@ -24,6 +24,12 @@ The vault is a folder of markdown notes (an Obsidian vault) reached through the 
 - A superseded note gets `superseded_by: "[[stem]]"` through `close(..., merged_into=...)`; do not delete history.
 - Tags come from the vocabulary in the schema; the folder name is never a tag.
 
+## Backlog
+
+- The moment something is deferred, in so many words or in passing ("later", "not now", "put it in the backlog"), call `backlog_add` in the same turn: title, area, one line, a priority (`urgent`, `high`, `medium`, `low`) and the source (who said it and when, or a sha). Confirm it in one line.
+- A backlog note is a decision to build something later; the system note's remaining-work section describes what is missing today. Do not duplicate one into the other.
+- `backlog` lists the queue by priority then age, filtered by area or family; `context` shows the relevant ones at session start. Picking an item up is setting its status to `active`; finishing it is `close`.
+
 ## Lint
 
 `lint` reports broken frontmatter, missing fields, missing areas, unresolved links, orphans, stale task notes and archive notes with a live status. Fix what you caused before ending the session.
