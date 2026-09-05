@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "gronare",
+  "description": "Claude Code plugins from Grönare",
+  "owner": {
+    "name": "Carl Green"
+  },
+  "plugins": [
+    {
+      "name": "vault",
+      "description": "Your Obsidian vault (S3 bucket or local folder) as Claude's persistent memory: indexed search, session-start context, a repo log with commit shas, and lint. Bundles the notes-vault-mcp server, two hooks and a workflow skill.",
+      "author": {
+        "name": "Carl Green"
+      },
+      "category": "productivity",
+      "source": "./plugins/vault",
+      "homepage": "https://github.com/gronare/notes-vault-mcp"
+    }
+  ]
+}
