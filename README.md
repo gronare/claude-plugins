@@ -20,3 +20,5 @@ uvx notes-vault-mcp init
 ```
 
 which writes `.vault/schema.yml` and three Bases views and prints a CLAUDE.md snippet.
+
+The plugin also ships the four Obsidian skills from [kepano/obsidian-skills](https://github.com/kepano/obsidian-skills) (obsidian-cli, obsidian-markdown, obsidian-bases, json-canvas), MIT licensed, so the agent writes correct Obsidian markdown, Bases and canvases and can drive the Obsidian CLI when the app is running.
