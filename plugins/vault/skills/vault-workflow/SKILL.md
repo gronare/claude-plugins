@@ -13,6 +13,10 @@ The vault is a folder of markdown notes (an Obsidian vault) reached through the 
 2. **Before the first edit.** The system note for the subsystem must exist and describe today's state. If it is missing, write it (folder of kind `system`, `kind: system`, a `path` list, a `summary`). Write a task note (folder of kind `task`) only when the work spans sessions or needs a decision record; it must carry `area: "[[<system note>]]"`.
 3. **Session end.** Update the system note with what changed, then call `log_append` with the repo, one line, the commit shas and the area. The `stop` hook blocks the stop when commits from the last day are missing from the log. Close finished task notes with `close` (optionally `merged_into` the system note).
 
+## Where the notes are
+
+- The notes live only in the vault the server is configured for (an S3 bucket or a folder); they are not in the working tree and usually not on this machine. Read one with `read_file(path)`, find others with `search`; never `find`, `mdfind` or `ls` for the vault's files. A wikilink `[[stem]]` is a `search` on the stem, not a path.
+
 ## Searching
 
 `search` is indexed and cheap. It ANDs terms, expands synonyms from the schema, and hides the archive and superseded notes unless asked. A 7-40 hex query looks up notes that mention that commit. Use `include_archive=true` only when the question is about history. `read_file` returns an `etag:` line; pass it as `expected_etag` to `write_file` when overwriting a note someone else may edit.
