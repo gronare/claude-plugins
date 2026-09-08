@@ -1,7 +1,7 @@
 {
   "name": "vault",
   "displayName": "Vault",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Your Obsidian vault (S3 bucket or local folder) as Claude's persistent memory: indexed search, session-start context, a repo log with commit shas, and lint.",
   "author": {
     "name": "Carl Green"
@@ -17,7 +17,6 @@
     "mcp"
   ],
   "mcpServers": "./.mcp.json",
-  "hooks": "./hooks/hooks.json",
   "userConfig": {
     "vault_path": {
       "type": "string",
