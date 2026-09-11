@@ -71,6 +71,7 @@ Start Claude Code in any git repo. The session-start hook prints a context bundl
 | `/vault:init [--force]` | Sets the vault up, see above. |
 | `/vault:backlog [area]` | Shows the backlog by priority then age, for one area when given. |
 | `/vault:log [line]` | Writes this session's line in the repo log now, with the commits it produced, instead of waiting for the stop hook. |
+| `/vault:lint` | Reports drift across the vault: broken frontmatter, missing fields, unresolved wikilinks, orphans, stale open tasks, archive mismatches. |
 
 ### Update
 
