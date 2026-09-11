@@ -28,6 +28,11 @@ The vault is a folder of markdown notes (an Obsidian vault) reached through the 
 - A superseded note gets `superseded_by: "[[stem]]"` through `close(..., merged_into=...)`; do not delete history.
 - Tags come from the vocabulary in the schema; the folder name is never a tag.
 
+## Triage at session start
+
+- `context` lists open task notes older than the schema's stale window under `triage`. Settle each before new work: `close` when the work is done, `append_file` a dated line saying what is still open when it is still moving, `set_status(path, "backlog", priority)` to park it. The session that created a note is gone; the session that meets it owns it.
+- The weekly `lint --park-stale` parks what no session met, so `active` always means touched within the window.
+
 ## Backlog
 
 - The moment something is deferred, in so many words or in passing ("later", "not now", "put it in the backlog"), call `backlog_add` in the same turn: title, area, one line, a priority (`urgent`, `high`, `medium`, `low`) and the source (who said it and when, or a sha). Confirm it in one line.
