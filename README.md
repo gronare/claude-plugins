@@ -50,26 +50,27 @@ The settings live in `~/.claude/settings.json` and are handed to the server and 
 
 Inside Claude Code: `/plugin` → Installed → vault → Configure. Or run the install again with `--config`.
 
-### Initialise the vault, once per vault
+### Set the vault up, once per vault
 
-The vault needs `.vault/schema.yml` and the Obsidian Bases views in its root. `init` writes them and refuses to overwrite anything that exists (add `--force` to overwrite). It runs outside the plugin, so it needs the vault's location in the shell:
+Start Claude Code and run:
 
-```bash
-S3_ENDPOINT=https://minio.example.com S3_BUCKET=obsidian S3_ACCESS_KEY=vault-mcp S3_SECRET_KEY=... \
-  uvx notes-vault-mcp init
+```
+/vault:init
 ```
 
-or, for a local vault:
-
-```bash
-VAULT_PATH=/path/to/vault uvx notes-vault-mcp init
-```
-
-It prints a CLAUDE.md snippet: the workflow rules an agent needs on its side of the conversation. Put it in `~/.claude/CLAUDE.md`.
+It writes `.vault/schema.yml` and the Obsidian Bases views into the vault's root through the server the plugin already configured, and keeps whatever is there; `/vault:init --force` overwrites them with the defaults. The workflow rules the agent needs come with the plugin's `vault-workflow` skill, so nothing goes into CLAUDE.md.
 
 ### Check that it works
 
 Start Claude Code in any git repo. The session-start hook prints a context bundle from the vault before the first prompt, and `claude mcp list` shows `plugin:vault:vault` as connected.
+
+### Commands
+
+| Command | What it does |
+| --- | --- |
+| `/vault:init [--force]` | Sets the vault up, see above. |
+| `/vault:backlog [area]` | Shows the backlog by priority then age, for one area when given. |
+| `/vault:log [line]` | Writes this session's line in the repo log now, with the commits it produced, instead of waiting for the stop hook. |
 
 ### Update
 
