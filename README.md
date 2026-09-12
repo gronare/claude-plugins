@@ -4,7 +4,7 @@ A Claude Code plugin marketplace.
 
 ## vault
 
-Your Obsidian vault as Claude's persistent memory, backed by an S3 bucket or a local folder. The plugin bundles the [notes-vault-mcp](https://github.com/gronare/notes-vault-mcp) server, a `SessionStart` hook that prints the context for the code you are in, a `Stop` hook that keeps the repo log complete, the `vault-workflow` skill, and the four Obsidian skills from [kepano/obsidian-skills](https://github.com/kepano/obsidian-skills) (obsidian-cli, obsidian-markdown, obsidian-bases, json-canvas, MIT licensed).
+Your Obsidian vault as Claude's persistent memory, backed by an S3 bucket or a local folder. The plugin bundles the [notes-vault-mcp](https://github.com/gronare/notes-vault-mcp) server, a `SessionStart` hook that prints the context for the code you are in, a `Stop` hook that keeps the repo log complete, the `vault-workflow` skill, and three Obsidian skills from [kepano/obsidian-skills](https://github.com/kepano/obsidian-skills) (obsidian-markdown, obsidian-bases, json-canvas, MIT licensed) so the agent writes correct Obsidian markdown, Bases and canvases through the server. The Obsidian CLI is not bundled: notes go through the server, never through the app.
 
 ### Requirements
 
