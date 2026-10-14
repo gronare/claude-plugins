@@ -1,7 +1,7 @@
 {
   "name": "herdr-review",
   "displayName": "Herdr review",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Review a repo's changes in a herdr split next to Claude: a filterable file list with diff previews, unified diffs in nvim, file:line comments typed into Claude's input box, and read marks that hold until a file changes. Plus tig in a split for commit history.",
   "author": {
     "name": "Carl Green"

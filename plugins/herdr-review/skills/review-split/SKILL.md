@@ -15,6 +15,6 @@ disable-model-invocation: true
    - When the user wants every change rather than one piece of work, skip the scope and pass no paths.
 3. From the repo root, run `sh "${CLAUDE_SKILL_DIR}/../../scripts/review.sh" split <base> <path>...` with the work's files as repo-relative paths, specs included, in the order you will present them. Changes outside the scope stay out of the list until the user presses ctrl-o.
 4. Reply with a short review guide, numbered in the same order as the paths, no more than a few lines per file: what changed and which choice is worth a look. Do not repeat the diff. Mention in one line which other changes you left out of scope, if any.
-5. Add one line on the controls: type to filter (`!spec/` is prefilled to hide specs), Enter opens the unified diff in nvim; there c comments, w toggles line wrap, r marks the file read, q or Esc goes back. In the list ctrl-r toggles read, ctrl-h shows or hides read files, ctrl-o shows or hides changes outside the scope; a read file returns when its contents change. Comments are not sent until the user presses Enter here.
+5. Add one line on the controls: Enter opens a file's diff, c there comments, r marks it read; `?` in the list shows every key. Comments are not sent until the user presses Enter here.
 
 When comments arrive as `path:line — text` lines (`(before)` means the line number is in the old version), answer each one; change code only where a comment asks for it.

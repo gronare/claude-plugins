@@ -123,6 +123,7 @@ claude plugin install herdr-review@gronare
 | list | ctrl-r | mark the file read, or unread |
 | list | ctrl-h | show or hide read files |
 | list | ctrl-o | show or hide changes outside the work under review |
+| list | ? | show every key in the preview pane |
 | list | Esc | close the split |
 | diff | c | comment on the line or visual selection |
 | diff | w | toggle line wrap |
