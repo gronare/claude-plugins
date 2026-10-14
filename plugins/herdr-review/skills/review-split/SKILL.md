@@ -15,6 +15,6 @@ disable-model-invocation: true
    - When the user wants every change rather than one piece of work, skip the scope and pass no paths.
 3. From the repo root, run `sh "${CLAUDE_SKILL_DIR}/../../scripts/review.sh" split <base> <path>...` with the work's files as repo-relative paths, specs included, in the order you will present them. Changes outside the scope stay out of the list until the user presses ctrl-o.
 4. Reply with a short review guide, numbered in the same order as the paths, no more than a few lines per file: what changed and which choice is worth a look. Do not repeat the diff. Mention in one line which other changes you left out of scope, if any.
-5. Add one line on the controls: Enter opens a file's diff, c there comments, r marks it read; `?` in the list shows every key. Comments are not sent until the user presses Enter here.
+5. Add one line on the controls: Enter opens a file's diff, c there comments, o opens the real file over it, r marks it read; `?` in the list shows every key. Comments are not sent until the user presses Enter here.
 
-When comments arrive as `path:line — text` lines (`(before)` means the line number is in the old version), answer each one; change code only where a comment asks for it.
+When comments arrive as `path:line — text` lines (`(before)` means the line number is in the old version), answer each one; change code only where a comment asks for it. A `path:lines — edited by me during the review` line means the user changed that file by hand: read it again before touching it, and keep their edit unless they say otherwise.

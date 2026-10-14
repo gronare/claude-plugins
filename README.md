@@ -126,9 +126,15 @@ claude plugin install herdr-review@gronare
 | list | ? | show every key in the preview pane |
 | list | Esc | close the split |
 | diff | c | comment on the line or visual selection |
+| diff | o | open the real file over the diff, at that line |
+| diff | - | open the file's folder over the diff (neo-tree's float if installed, else netrw) |
 | diff | w | toggle line wrap |
 | diff | r | mark the file read and go back to the list |
 | diff | q, Esc | back to the list |
+| opened file | leader m | comment on the line or visual selection |
+| opened file | ctrl-q | back to the diff |
+
+Files opened with `o` or `-` show in a float over the diff, and everything else in it is your usual nvim: jump around, search, edit. When you go back to the diff, files you saved are reported to Claude as `path:lines — edited by me during the review`, and unsaved edits ask to be saved or discarded first.
 
 A comment is typed into Claude's input box as `path:line — text`, not submitted, so several pile up until you press Enter there. A read file stays out of the list until its contents change; marks live in `~/.local/state/herdr-review/`, one file per repo.
 

@@ -164,16 +164,22 @@ help() {
   key "esc" "close the split"
   heading "Diff"
   key "c" "comment on the line, or a visual selection"
+  key "o" "open the file over the diff, at that line"
+  key "-" "open the file's folder over the diff"
   key "w" "toggle line wrap"
   key "r" "mark read and go back to the list"
   key "q  esc" "back to the list"
+  heading "Opened files (the float)"
+  key "leader m" "comment on the line, or a visual selection (leader is space in many configs)"
+  key "ctrl-q" "back to the diff"
+  printf '   %s\n' "Everything else is your usual nvim. Saved edits are" "reported to Claude when you go back to the diff."
   heading "Good to know"
   printf '   %s\n' "Comments are typed into Claude's input box; nothing is" "sent until you press Enter there." "" "A read file comes back when its contents change." "" "Move the cursor to get the diff preview back."
 }
 
 open() {
   unified_diff "$1" "$2" never |
-    REVIEW_PATH="$2" REVIEW_SCRIPT="$script" nvim -S "$(dirname "$script")/review.lua" - || true
+    REVIEW_PATH="$2" REVIEW_BASE="$1" REVIEW_SCRIPT="$script" nvim -S "$(dirname "$script")/review.lua" - || true
 }
 
 # $3, when given, is a file of repo-relative paths that make up the work under review, in review order.
@@ -233,6 +239,7 @@ case "$command" in
   list) list "$@" ;;
   rows) rows "$@" ;;
   preview) unified_diff "$1" "$2" always ;;
+  diff) unified_diff "$1" "$2" never ;;
   open) open "$@" ;;
   mark-read) mark_read "$1" ;;
   toggle-read) toggle_read "$1" ;;
