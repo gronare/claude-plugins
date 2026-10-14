@@ -114,7 +114,7 @@ claude plugin install herdr-review@gronare
 
 ### Use
 
-`/herdr-review:review-split [base]` opens a split with the changed files: uncommitted changes against `HEAD`, or the unpushed commits when the tree is clean, or against the base you give (`origin/main`, `HEAD~3`). Claude replies with a short guide to the changes.
+`/herdr-review:review-split [base or what to review]` opens a split with the files of the work under review. Claude works out the scope first: the files it changed in this session, or, for work from elsewhere, what the unpushed commits, uncommitted changes and any project notes say belongs to it, asking when that is unclear. The list shows those files in the order of Claude's numbered review guide; other changes in the repo are one key away. Ask for everything and you get every change against the base.
 
 | Where | Key | What it does |
 | --- | --- | --- |
@@ -122,6 +122,7 @@ claude plugin install herdr-review@gronare
 | list | Enter | open the file's unified diff in nvim |
 | list | ctrl-r | mark the file read, or unread |
 | list | ctrl-h | show or hide read files |
+| list | ctrl-o | show or hide changes outside the work under review |
 | list | Esc | close the split |
 | diff | c | comment on the line or visual selection |
 | diff | w | toggle line wrap |

@@ -3,9 +3,10 @@
 # in nvim, and c there sends a file:line comment into the Claude pane's input box.
 # Files marked read stay out of the list until their contents change.
 #
-#   review.sh split [base]        open the review split next to the calling pane (run from Claude's pane)
-#   review.sh history             open tig (commit history) in a split instead
-#   review.sh list <base> <pane>  the file list itself, run inside the split
+#   review.sh split [base [path ...]]     open the review split next to the calling pane (run from Claude's pane);
+#                                         paths scope the list to the work under review, in review order
+#   review.sh history                     open tig (commit history) in a split instead
+#   review.sh list <base> <pane> [scope]  the file list itself, run inside the split
 #
 # base defaults to HEAD when the work tree has changes, else the upstream branch (unpushed commits).
 # Short flags throughout: the script is shared, and BSD awk/wc/cut on macOS lack the GNU long forms.
@@ -79,32 +80,70 @@ toggle_read() {
   if is_read "$1"; then unmark_read "$1"; else mark_read "$1"; fi
 }
 
-# The list for fzf: a status line (fzf's --header-lines 1), then unread files, then read ones dimmed if $2 says all.
+# path<TAB>stats lines tagged "scope" or "other": the scope file's paths first, in its order, then the remaining
+# changes. Without a scope file every change is in scope.
+categorized() {
+  changes=$(changed_files "$1")
+  if [ -z "$2" ]; then
+    echo "$changes" | sed "s/^/scope$tab/"
+    return
+  fi
+  sed 's|^\./||' "$2" | awk '!seen[$0]++' | while read -r path; do
+    echo "$changes" | awk -F '\t' -v path="$path" '$1 == path { print "scope\t" $0 }'
+  done
+  echo "$changes" | awk -F '\t' 'NR == FNR { sub(/^\.\//, ""); scoped[$0]; next } !($1 in scoped) { print "other\t" $0 }' "$2" -
+}
+
+# The list for fzf: a status line (fzf's --header-lines 1), then unread files in scope, unread other changes when
+# $2/other exists, and read files dimmed when $2/read exists. $3 is the scope file, if any.
 rows() {
   dim="$(printf '\033[2m')" reset="$(printf '\033[0m')"
-  hidden=0 unread="" read=""
-  while IFS="$tab" read -r path stats; do
+  in_scope=0 others=0 read_count=0 main="" rest="" read=""
+  while IFS="$tab" read -r kind path stats; do
     [ -n "$path" ] || continue
+    if [ "$kind" = other ]; then
+      others=$((others + 1))
+      [ -e "$2/other" ] || continue
+      note="${tab}other change"
+    else
+      in_scope=$((in_scope + 1))
+      note=""
+    fi
     if is_read "$path"; then
-      hidden=$((hidden + 1))
+      read_count=$((read_count + 1))
       read="$read$dim$path$tab$stats$tab✓ read$reset
 "
+    elif [ "$kind" = other ]; then
+      rest="$rest$path$tab$stats$note
+"
     else
-      unread="$unread$path$tab$stats
+      main="$main$path$tab$stats
 "
     fi
   done <<EOF
-$(changed_files "$1")
+$(categorized "$1" "${3:-}")
 EOF
-  if [ "$hidden" -eq 0 ]; then
-    echo "ctrl-r: mark read"
-  elif [ "$2" = all ]; then
-    echo "showing $hidden read · ctrl-h: hide them · ctrl-r: toggle read"
-  else
-    echo "$hidden read hidden · ctrl-h: show them · ctrl-r: mark read"
+  status=""
+  if [ -n "${3:-}" ]; then
+    status="$in_scope in scope"
+    if [ "$others" -gt 0 ] && [ -e "$2/other" ]; then
+      status="$status · showing $others other · ctrl-o: hide"
+    elif [ "$others" -gt 0 ]; then
+      status="$status · $others other hidden · ctrl-o: show"
+    fi
+    status="$status · "
   fi
-  printf '%s' "$unread"
-  [ "$2" = all ] && printf '%s' "$read"
+  if [ "$read_count" -gt 0 ] && [ -e "$2/read" ]; then
+    status="${status}showing $read_count read · ctrl-h: hide · ctrl-r: toggle read"
+  elif [ "$read_count" -gt 0 ]; then
+    status="$status$read_count read hidden · ctrl-h: show · ctrl-r: mark read"
+  else
+    status="${status}ctrl-r: mark read"
+  fi
+  echo "$status"
+  printf '%s' "$main"
+  printf '%s' "$rest"
+  [ -e "$2/read" ] && printf '%s' "$read"
   return 0
 }
 
@@ -113,18 +152,20 @@ open() {
     REVIEW_PATH="$2" REVIEW_SCRIPT="$script" nvim -S "$(dirname "$script")/review.lua" - || true
 }
 
+# $3, when given, is a file of repo-relative paths that make up the work under review, in review order.
 list() {
+  scope="${3:-}"
   if [ -z "$(changed_files "$1")" ]; then
     echo "Nothing to review against $1."
     sleep 2
     return
   fi
-  # Whether read files are shown lives in a file, so the ctrl-h binding can flip it between reloads.
-  view=$(mktemp)
-  trap 'rm -f "$view"' EXIT
-  echo unread > "$view"
-  reload="reload(sh '$script' rows '$1' \"\$(cat '$view')\")"
-  sh "$script" rows "$1" unread | REVIEW_AGENT_PANE="$2" fzf \
+  # Which extra rows are shown lives in a directory (flag files read and other), so bindings can flip it between reloads.
+  view=$(mktemp -d)
+  trap 'rm -rf "$view" ${scope:+"$scope"}' EXIT
+  reload="reload(sh '$script' rows '$1' '$view' '$scope')"
+  flip() { echo "execute-silent(if [ -e '$view/$1' ]; then rm '$view/$1'; else touch '$view/$1'; fi)+$reload"; }
+  sh "$script" rows "$1" "$view" "$scope" | REVIEW_AGENT_PANE="$2" fzf \
     --ansi --header-lines 1 \
     --delimiter '\t' --nth 1 \
     --query '!spec/ ' \
@@ -134,8 +175,8 @@ list() {
     --preview-window 'right,60%,<140(down,70%)' \
     --bind "enter:execute(sh '$script' open '$1' {1})+$reload" \
     --bind "ctrl-r:execute-silent(sh '$script' toggle-read {1})+$reload" \
-    --bind "ctrl-h:execute-silent(sed -i.bak 's/^unread\$/x/; s/^all\$/unread/; s/^x\$/all/' '$view')+$reload" || true
-  rm -f "$view.bak"
+    --bind "ctrl-h:$(flip read)" \
+    --bind "ctrl-o:$(flip other)" || true
 }
 
 # Opens a split right of the calling pane, labelled $1, running $2; the split closes when $2 exits.
@@ -147,10 +188,22 @@ open_split() {
   echo "$pane"
 }
 
+# split [base [path ...]]: paths limit the list to the work under review, the rest of the changes one key away.
+split() {
+  base="${1:-$(default_base)}"
+  [ $# -gt 0 ] && shift
+  scope=""
+  if [ $# -gt 0 ]; then
+    scope=$(mktemp)
+    printf '%s\n' "$@" > "$scope"
+  fi
+  open_split review "sh '$script' list '$base' '$HERDR_PANE_ID' '$scope'"
+}
+
 command="${1:-}"
 [ $# -gt 0 ] && shift
 case "$command" in
-  split) open_split review "sh '$script' list '${1:-$(default_base)}' '$HERDR_PANE_ID'" ;;
+  split) split "$@" ;;
   history) open_split history "tig" ;;
   list) list "$@" ;;
   rows) rows "$@" ;;
@@ -158,5 +211,5 @@ case "$command" in
   open) open "$@" ;;
   mark-read) mark_read "$1" ;;
   toggle-read) toggle_read "$1" ;;
-  *) echo "usage: review.sh split [base] | review.sh history" >&2; exit 2 ;;
+  *) echo "usage: review.sh split [base [path ...]] | review.sh history" >&2; exit 2 ;;
 esac
