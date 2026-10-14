@@ -96,3 +96,38 @@ claude plugin install vault@gronare \
 ```
 
 and gets its own `init` with the same values.
+
+## herdr-review
+
+Review a repo's changes in a [herdr](https://herdr.dev) split next to the Claude pane, and send comments back to Claude without leaving the diff.
+
+### Requirements
+
+Claude Code running inside herdr, plus `fzf`, `nvim` 0.10 or later, `jq` and `git` on `PATH`; `tig` for the history split.
+
+### Install
+
+```bash
+claude plugin marketplace add https://github.com/gronare/claude-plugins
+claude plugin install herdr-review@gronare
+```
+
+### Use
+
+`/herdr-review:review-split [base]` opens a split with the changed files: uncommitted changes against `HEAD`, or the unpushed commits when the tree is clean, or against the base you give (`origin/main`, `HEAD~3`). Claude replies with a short guide to the changes.
+
+| Where | Key | What it does |
+| --- | --- | --- |
+| list | type | filter; `!spec/ ` is prefilled to hide specs |
+| list | Enter | open the file's unified diff in nvim |
+| list | ctrl-r | mark the file read, or unread |
+| list | ctrl-h | show or hide read files |
+| list | Esc | close the split |
+| diff | c | comment on the line or visual selection |
+| diff | w | toggle line wrap |
+| diff | r | mark the file read and go back to the list |
+| diff | q, Esc | back to the list |
+
+A comment is typed into Claude's input box as `path:line — text`, not submitted, so several pile up until you press Enter there. A read file stays out of the list until its contents change; marks live in `~/.local/state/herdr-review/`, one file per repo.
+
+`/herdr-review:history-split` opens tig in a split for the branch's history.

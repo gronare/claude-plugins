@@ -1,0 +1,18 @@
+{
+  "name": "herdr-review",
+  "displayName": "Herdr review",
+  "version": "0.1.0",
+  "description": "Review a repo's changes in a herdr split next to Claude: a filterable file list with diff previews, unified diffs in nvim, file:line comments typed into Claude's input box, and read marks that hold until a file changes. Plus tig in a split for commit history.",
+  "author": {
+    "name": "Carl Green"
+  },
+  "repository": "https://github.com/gronare/claude-plugins",
+  "license": "MIT",
+  "keywords": [
+    "herdr",
+    "review",
+    "diff",
+    "fzf",
+    "nvim"
+  ]
+}
