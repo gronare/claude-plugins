@@ -128,6 +128,7 @@ claude plugin install herdr-review@gronare
 | diff | c | comment on the line or visual selection |
 | diff | o | open the real file over the diff, at that line |
 | diff | - | open the file's folder over the diff (neo-tree's float if installed, else netrw) |
+| diff | u | reload the diff after the file changed |
 | diff | w | toggle line wrap |
 | diff | r | mark the file read and go back to the list |
 | diff | q, Esc | back to the list |
@@ -137,5 +138,17 @@ claude plugin install herdr-review@gronare
 Files opened with `o` or `-` show in a float over the diff, and everything else in it is your usual nvim: jump around, search, edit. When you go back to the diff, files you saved are reported to Claude as `path:lines — edited by me during the review`, and unsaved edits ask to be saved or discarded first.
 
 A comment is typed into Claude's input box as `path:line — text`, not submitted, so several pile up until you press Enter there. A read file stays out of the list until its contents change; marks live in `~/.local/state/herdr-review/`, one file per repo.
+
+The list follows the repo by itself: it reloads when files change, keeping your filter and cursor. An open diff marks itself `changed on disk` instead of moving under you; `u` reloads it.
+
+### Live review (optional)
+
+With the plugin setting **Open the review pane automatically** on, Claude's first file edit in a session opens the review split next to it without taking focus. Files that were already changed before that edit count as other changes (behind ctrl-o); everything changed after it is in scope, newest first. Close the pane from herdr and it stays closed for that session; `/herdr-review:review-split` brings it back, or rescopes the open one to Claude's guide.
+
+The setting is off by default. Turn it on in Claude Code under `/plugin` → Installed → herdr-review → Configure, or at install:
+
+```bash
+claude plugin install herdr-review@gronare --config auto_open=true
+```
 
 `/herdr-review:history-split` opens tig in a split for the branch's history.

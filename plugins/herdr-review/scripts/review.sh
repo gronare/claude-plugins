@@ -1,12 +1,17 @@
 #!/bin/sh
 # Review a repo's changes in a herdr split: an fzf list of changed files with a diff preview, Enter opens that diff
 # in nvim, and c there sends a file:line comment into the Claude pane's input box.
-# Files marked read stay out of the list until their contents change.
+# Files marked read stay out of the list until their contents change. The list reloads itself as files change.
 #
-#   review.sh split [base [path ...]]     open the review split next to the calling pane (run from Claude's pane);
-#                                         paths scope the list to the work under review, in review order
-#   review.sh history                     open tig (commit history) in a split instead
-#   review.sh list <base> <pane> [scope]  the file list itself, run inside the split
+#   review.sh split [base [path ...]]  open the review split next to the calling pane (run from Claude's pane), or
+#                                      rescope the one already open; paths scope the list, in review order
+#   review.sh history                  open tig (commit history) in a split instead
+#   review.sh hook                     PreToolUse hook: opens a live review on Claude's first edit, when enabled
+#   review.sh list <review dir>        the file list itself, run inside the split
+#
+# Each Claude pane has one review, kept in a directory: base, label, agent (the Claude pane), pane (the review
+# split), and optionally scope (paths in review order), baseline (files already changed when the work started, with
+# their content hash), session (the Claude session the hook opened it for), view/ flags and fzf.sock.
 #
 # base defaults to HEAD when the work tree has changes, else the upstream branch (unpushed commits).
 # Short flags throughout: the script is shared, and BSD awk/wc/cut on macOS lack the GNU long forms.
@@ -16,6 +21,7 @@ set -eu
 script="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 herdr="${HERDR_BIN_PATH:-herdr}"
 tab="$(printf '\t')"
+state="${XDG_STATE_HOME:-$HOME/.local/state}/herdr-review"
 
 default_base() {
   if [ -n "$(git status --porcelain)" ]; then
@@ -23,6 +29,10 @@ default_base() {
   else
     git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || echo HEAD
   fi
+}
+
+review_dir() {
+  echo "$state/reviews/$(echo "$1" | tr ':/' '__')"
 }
 
 # path<TAB>+added -deleted for tracked changes, then untracked files as all-new.
@@ -52,9 +62,8 @@ unified_diff() {
 # Read marks, one "path<TAB>content hash" per line and repo. Keyed on the file's contents rather than its diff, so
 # committing a file keeps it read and any edit brings it back.
 read_marks() {
-  dir="${XDG_STATE_HOME:-$HOME/.local/state}/herdr-review"
-  mkdir -p "$dir"
-  echo "$dir/$(git rev-parse --show-toplevel | tr '/' '_')"
+  mkdir -p "$state"
+  echo "$state/$(git rev-parse --show-toplevel | tr '/' '_')"
 }
 
 fingerprint() {
@@ -80,18 +89,41 @@ toggle_read() {
   if is_read "$1"; then unmark_read "$1"; else mark_read "$1"; fi
 }
 
-# path<TAB>stats lines tagged "scope" or "other": the scope file's paths first, in its order, then the remaining
-# changes. Without a scope file every change is in scope.
+# path<TAB>stats lines tagged "scope" or "other". With a scope file, its paths come first in its order. With a
+# baseline instead, files still as they were when the work started are other, the rest are newest first. Without
+# either, every change is in scope.
 categorized() {
-  changes=$(changed_files "$1")
-  if [ -z "$2" ]; then
+  changes=$(changed_files "$(cat "$1/base")")
+  if [ -f "$1/scope" ]; then
+    sed 's|^\./||' "$1/scope" | awk '!seen[$0]++' | while read -r path; do
+      echo "$changes" | awk -F '\t' -v path="$path" '$1 == path { print "scope\t" $0 }'
+    done
+    echo "$changes" | awk -F '\t' 'NR == FNR { sub(/^\.\//, ""); scoped[$0]; next } !($1 in scoped) { print "other\t" $0 }' "$1/scope" -
+  elif [ -f "$1/baseline" ]; then
+    new_work=""
+    while IFS="$tab" read -r path stats; do
+      [ -n "$path" ] || continue
+      if grep -qxF "$path$tab$(fingerprint "$path")" "$1/baseline"; then
+        printf 'other\t%s\t%s\n' "$path" "$stats"
+      else
+        new_work="$new_work$path
+"
+      fi
+    done <<EOF
+$changes
+EOF
+    [ -n "$new_work" ] || return 0
+    # Newest first: ls -t sorts the files that still exist, deleted ones follow.
+    echo "$new_work" | while read -r path; do [ -e "$path" ] && printf '%s\0' "$path"; done | xargs -0 ls -td -- 2>/dev/null |
+      while read -r path; do echo "$changes" | awk -F '\t' -v path="$path" '$1 == path { print "scope\t" $0 }'; done
+    echo "$new_work" | while read -r path; do
+      [ -n "$path" ] && [ ! -e "$path" ] && echo "$changes" | awk -F '\t' -v path="$path" '$1 == path { print "scope\t" $0 }'
+    done
+    return 0
+  else
     echo "$changes" | sed "s/^/scope$tab/"
-    return
   fi
-  sed 's|^\./||' "$2" | awk '!seen[$0]++' | while read -r path; do
-    echo "$changes" | awk -F '\t' -v path="$path" '$1 == path { print "scope\t" $0 }'
-  done
-  echo "$changes" | awk -F '\t' 'NR == FNR { sub(/^\.\//, ""); scoped[$0]; next } !($1 in scoped) { print "other\t" $0 }' "$2" -
+  return 0
 }
 
 # One list row: the path for fzf's {1}, then what is displayed (--with-nth 2): +added -deleted in a fixed-width column,
@@ -104,7 +136,7 @@ row() {
 }
 
 # The list for fzf: a status line (fzf's --header-lines 1), then unread files in scope, unread other changes when
-# $2/other exists, and read files dimmed when $2/read exists. $3 is the scope file, if any.
+# view/other exists, and read files dimmed when view/read exists.
 rows() {
   dim="$(printf '\033[2m')"
   in_scope=0 others=0 read_count=0 main="" rest="" read=""
@@ -112,7 +144,7 @@ rows() {
     [ -n "$path" ] || continue
     if [ "$kind" = other ]; then
       others=$((others + 1))
-      [ -e "$2/other" ] || continue
+      [ -e "$1/view/other" ] || continue
     else
       in_scope=$((in_scope + 1))
     fi
@@ -128,26 +160,26 @@ rows() {
 "
     fi
   done <<EOF
-$(categorized "$1" "${3:-}")
+$(categorized "$1")
 EOF
   # against <base> · 5 to review · 3 other hidden · 1 read hidden · ? help, counts in yellow.
   count() { printf '\033[33m%s\033[0m %s' "$1" "$2"; }
-  status="against $(printf '\033[35m%s\033[0m' "$1")"
-  if [ -n "${3:-}" ]; then
+  status="$(printf '\033[35m%s\033[0m' "$(cat "$1/label")")"
+  if [ -f "$1/scope" ] || [ -f "$1/baseline" ]; then
     status="$status  ·  $(count "$in_scope" "to review")"
     if [ "$others" -gt 0 ]; then
-      if [ -e "$2/other" ]; then status="$status  ·  $(count "$others" "other shown")"; else status="$status  ·  $(count "$others" "other hidden")"; fi
+      if [ -e "$1/view/other" ]; then status="$status  ·  $(count "$others" "other shown")"; else status="$status  ·  $(count "$others" "other hidden")"; fi
     fi
   else
     status="$status  ·  $(count "$in_scope" changed)"
   fi
   if [ "$read_count" -gt 0 ]; then
-    if [ -e "$2/read" ]; then status="$status  ·  $(count "$read_count" "read shown")"; else status="$status  ·  $(count "$read_count" "read hidden")"; fi
+    if [ -e "$1/view/read" ]; then status="$status  ·  $(count "$read_count" "read shown")"; else status="$status  ·  $(count "$read_count" "read hidden")"; fi
   fi
   printf '\t%s  ·  \033[1m?\033[0m help\n' "$status"
   printf '%s' "$main"
   printf '%s' "$rest"
-  [ -e "$2/read" ] && printf '%s' "$read"
+  [ -e "$1/view/read" ] && printf '%s' "$read"
   return 0
 }
 
@@ -166,6 +198,7 @@ help() {
   key "c" "comment on the line, or a visual selection"
   key "o" "open the file over the diff, at that line"
   key "-" "open the file's folder over the diff"
+  key "u" "reload the diff when the file changed"
   key "w" "toggle line wrap"
   key "r" "mark read and go back to the list"
   key "q  esc" "back to the list"
@@ -174,36 +207,63 @@ help() {
   key "ctrl-q" "back to the diff"
   printf '   %s\n' "Everything else is your usual nvim. Saved edits are" "reported to Claude when you go back to the diff."
   heading "Good to know"
-  printf '   %s\n' "Comments are typed into Claude's input box; nothing is" "sent until you press Enter there." "" "A read file comes back when its contents change." "" "Move the cursor to get the diff preview back."
+  printf '   %s\n' "Comments are typed into Claude's input box; nothing is" "sent until you press Enter there." "" "The list follows changes by itself; a read file comes back" "when its contents change." "" "Move the cursor to get the diff preview back."
 }
 
 open() {
-  unified_diff "$1" "$2" never |
-    REVIEW_PATH="$2" REVIEW_BASE="$1" REVIEW_SCRIPT="$script" nvim -S "$(dirname "$script")/review.lua" - || true
+  base=$(cat "$1/base")
+  unified_diff "$base" "$2" never |
+    REVIEW_PATH="$2" REVIEW_BASE="$base" REVIEW_AGENT_PANE="$(cat "$1/agent")" REVIEW_SCRIPT="$script" \
+    nvim -S "$(dirname "$script")/review.lua" - || true
 }
 
-# $3, when given, is a file of repo-relative paths that make up the work under review, in review order.
-list() {
-  scope="${3:-}"
-  if [ -z "$(changed_files "$1")" ]; then
-    echo "Nothing to review against $1."
+# What the list shows, cheaply: the review's settings, the diff against base and the untracked files' contents.
+signature() {
+  base=$(cat "$1/base")
+  {
+    cat "$1/base" "$1/scope" 2>/dev/null || true
+    git diff "$base" 2>/dev/null
+    git ls-files --others --exclude-standard | while read -r path; do echo "$path $(git hash-object -- "$path")"; done
+  } | cksum
+}
+
+reload_list() {
+  [ -S "$1/fzf.sock" ] || return 0
+  curl -s --max-time 2 --unix-socket "$1/fzf.sock" -X POST http://localhost -d "reload-sync(sh '$script' rows '$1')" >/dev/null || true
+}
+
+# Polls every 2 s while the list runs and reloads it when what it shows has changed.
+watch() {
+  last=$(signature "$1")
+  while kill -0 "$2" 2>/dev/null; do
     sleep 2
-    return
-  fi
-  # Which extra rows are shown lives in a directory (flag files read and other), so bindings can flip it between reloads.
-  view=$(mktemp -d)
-  trap 'rm -rf "$view" ${scope:+"$scope"}' EXIT
-  reload="reload(sh '$script' rows '$1' '$view' '$scope')"
-  flip() { echo "execute-silent(if [ -e '$view/$1' ]; then rm '$view/$1'; else touch '$view/$1'; fi)+$reload"; }
-  sh "$script" rows "$1" "$view" "$scope" | REVIEW_AGENT_PANE="$2" fzf \
+    now=$(signature "$1")
+    if [ "$now" != "$last" ]; then
+      reload_list "$1"
+      last=$now
+    fi
+  done
+}
+
+list() {
+  d=$1
+  mkdir -p "$d/view"
+  rm -f "$d/fzf.sock"
+  sh "$script" watch "$d" "$$" &
+  watcher=$!
+  trap 'kill "$watcher" 2>/dev/null; rm -rf "$d/view" "$d/fzf.sock"' EXIT
+  reload="reload(sh '$script' rows '$d')"
+  flip() { echo "execute-silent(if [ -e '$d/view/$1' ]; then rm '$d/view/$1'; else touch '$d/view/$1'; fi)+$reload"; }
+  sh "$script" rows "$d" | fzf \
+    --listen "$d/fzf.sock" \
     --ansi --header-lines 1 \
-    --delimiter '\t' --with-nth 2 \
+    --delimiter '\t' --with-nth 2 --id-nth 1 --track \
     --query '!spec/ ' \
     --layout reverse --info inline-right --prompt '  ' --pointer '▌' \
     --color 'prompt:magenta,pointer:magenta,hl:yellow,hl+:yellow,info:bright-black' \
-    --preview "sh '$script' preview '$1' {1}" \
+    --preview "sh '$script' preview '$d' {1}" \
     --preview-window 'right,60%,<140(down,70%)' \
-    --bind "enter:execute(sh '$script' open '$1' {1})+$reload" \
+    --bind "enter:execute(sh '$script' open '$d' {1})+$reload" \
     --bind "ctrl-r:execute-silent(sh '$script' toggle-read {1})+$reload" \
     --bind "ctrl-h:$(flip read)" \
     --bind "ctrl-o:$(flip other)" \
@@ -211,25 +271,89 @@ list() {
     --bind 'esc:ignore,ctrl-q:ignore,ctrl-g:ignore' || true
 }
 
-# Opens a split right of the calling pane, labelled $1, running $2; the split closes when $2 exits.
+# Opens a split right of the calling pane, labelled $1, running $2, focused unless $3 is no-focus; the split closes
+# when $2 exits.
 open_split() {
   root=$(git rev-parse --show-toplevel)
-  pane=$("$herdr" pane split --current --direction right --cwd "$root" --focus | jq -r '.result.pane.pane_id')
+  pane=$("$herdr" pane split --pane "$HERDR_PANE_ID" --direction right --cwd "$root" "--${3:-focus}" | jq -r '.result.pane.pane_id')
   "$herdr" pane rename "$pane" "$1" >/dev/null
   "$herdr" pane run "$pane" "$2; exit" >/dev/null
   echo "$pane"
 }
 
-# split [base [path ...]]: paths limit the list to the work under review, the rest of the changes one key away.
+# The review split for directory $1 is open while its pane exists and its list is listening.
+review_open() {
+  [ -f "$1/pane" ] && [ -S "$1/fzf.sock" ] && "$herdr" pane get "$(cat "$1/pane")" >/dev/null 2>&1
+}
+
+# Reviews whose Claude pane is gone; pane IDs are never reused, so they can't come back.
+prune_reviews() {
+  for dir in "$state"/reviews/*; do
+    [ -f "$dir/agent" ] || continue
+    "$herdr" pane get "$(cat "$dir/agent")" >/dev/null 2>&1 || rm -rf "$dir"
+  done
+}
+
+open_review() {
+  prune_reviews
+  pane=$(open_split review "sh '$script' list '$1'" "$2")
+  echo "$pane" > "$1/pane"
+  echo "$pane"
+}
+
+# split [base [path ...]]: paths limit the list to the work under review, the rest of the changes one key away. An open
+# review for this Claude pane is rescoped in place instead of opening a second split.
 split() {
+  d=$(review_dir "$HERDR_PANE_ID")
   base="${1:-$(default_base)}"
   [ $# -gt 0 ] && shift
-  scope=""
-  if [ $# -gt 0 ]; then
-    scope=$(mktemp)
-    printf '%s\n' "$@" > "$scope"
+  if review_open "$d"; then
+    rm -f "$d/scope" "$d/baseline"
+  else
+    rm -rf "$d"
+    mkdir -p "$d"
+    echo "$HERDR_PANE_ID" > "$d/agent"
   fi
-  open_split review "sh '$script' list '$base' '$HERDR_PANE_ID' '$scope'"
+  echo "$base" > "$d/base"
+  echo "against $base" > "$d/label"
+  [ $# -gt 0 ] && printf '%s\n' "$@" > "$d/scope"
+  if review_open "$d"; then
+    reload_list "$d"
+    cat "$d/pane"
+  else
+    open_review "$d" focus
+  fi
+}
+
+# PreToolUse on Claude's file edits. With the auto_open setting on and Claude in herdr, the first edit of a session
+# opens a live review next to Claude without taking focus: base is HEAD, and the files already changed before it count
+# as other. Closed from herdr, it stays closed for the rest of that session.
+hook() {
+  [ "${CLAUDE_PLUGIN_OPTION_AUTO_OPEN:-false}" = true ] || return 0
+  [ "${HERDR_ENV:-}" = 1 ] && [ -n "${HERDR_PANE_ID:-}" ] || return 0
+  input=$(cat)
+  session=$(echo "$input" | jq -r '.session_id // empty')
+  d=$(review_dir "$HERDR_PANE_ID")
+  [ -n "$session" ] && [ "$(cat "$d/session" 2>/dev/null)" = "$session" ] && return 0
+  if review_open "$d"; then
+    echo "$session" > "$d/session"
+    return 0
+  fi
+  file=$(echo "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty')
+  dir=$(dirname "${file:-.}")
+  [ -d "$dir" ] || dir=$(echo "$input" | jq -r '.cwd // "."')
+  cd "$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || return 0
+  head=$(git rev-parse --verify HEAD 2>/dev/null) || return 0
+  rm -rf "$d"
+  mkdir -p "$d"
+  echo "$session" > "$d/session"
+  echo "$HERDR_PANE_ID" > "$d/agent"
+  echo "$head" > "$d/base"
+  echo "since the work started ($(git rev-parse --short HEAD))" > "$d/label"
+  changed_files "$head" | while IFS="$tab" read -r path _; do
+    printf '%s\t%s\n' "$path" "$(fingerprint "$path")"
+  done > "$d/baseline"
+  open_review "$d" no-focus >/dev/null
 }
 
 command="${1:-}"
@@ -237,9 +361,11 @@ command="${1:-}"
 case "$command" in
   split) split "$@" ;;
   history) open_split history "tig" ;;
+  hook) hook >/dev/null 2>&1 || true ;;
   list) list "$@" ;;
   rows) rows "$@" ;;
-  preview) unified_diff "$1" "$2" always ;;
+  watch) watch "$@" ;;
+  preview) unified_diff "$(cat "$1/base")" "$2" always ;;
   diff) unified_diff "$1" "$2" never ;;
   open) open "$@" ;;
   mark-read) mark_read "$1" ;;

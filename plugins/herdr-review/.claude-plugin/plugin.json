@@ -1,7 +1,7 @@
 {
   "name": "herdr-review",
   "displayName": "Herdr review",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Review a repo's changes in a herdr split next to Claude: a filterable file list with diff previews, unified diffs in nvim, file:line comments typed into Claude's input box, and read marks that hold until a file changes. Plus tig in a split for commit history.",
   "author": {
     "name": "Carl Green"
@@ -14,5 +14,14 @@
     "diff",
     "fzf",
     "nvim"
-  ]
+  ],
+  "userConfig": {
+    "auto_open": {
+      "type": "boolean",
+      "title": "Open the review pane automatically",
+      "description": "Open a live review split next to Claude on its first file edit in a session (inside herdr only). Closing the pane keeps it closed for that session.",
+      "default": false,
+      "required": false
+    }
+  }
 }

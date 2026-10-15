@@ -87,9 +87,13 @@ local function is_real_file(buf)
   return vim.bo[buf].buftype == "" and vim.api.nvim_buf_get_name(buf) ~= ""
 end
 
+-- Set when the file's diff no longer matches the buffer; u reloads it.
+local stale = false
+
 local function update_winbar()
   local note = sent > 0 and ("  ·  " .. sent .. " sent to Claude") or ""
-  vim.wo[diff_win].winbar = " " .. path .. note .. "  %=o open  ·  - folder  ·  c comment  ·  w wrap  ·  r read  ·  q back "
+  local keys = stale and "%#DiagnosticWarn#changed on disk  ·  u reloads%* " or "o open  ·  - folder  ·  c comment  ·  w wrap  ·  r read  ·  q back "
+  vim.wo[diff_win].winbar = " " .. path .. note .. "  %=" .. keys
 end
 
 local function send_to_claude(text)
@@ -261,7 +265,25 @@ local function refresh_diff()
   vim.bo[diff_buf].modifiable = false
   vim.api.nvim_buf_clear_namespace(diff_buf, marks, 0, -1)
   number_lines()
+  stale = false
+  update_winbar()
 end
+
+-- Checks every 3 s whether the diff on disk moved on, without touching what is on screen.
+local function diff_lines(stdout)
+  return vim.split(stdout, "\n", { trimempty = true })
+end
+
+vim.uv.new_timer():start(3000, 3000, vim.schedule_wrap(function()
+  vim.system({ "sh", vim.env.REVIEW_SCRIPT, "diff", vim.env.REVIEW_BASE, path }, { text = true }, vim.schedule_wrap(function(result)
+    if result.code ~= 0 or not vim.api.nvim_buf_is_valid(diff_buf) then return end
+    local changed = not vim.deep_equal(diff_lines(result.stdout), vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false))
+    if changed ~= stale then
+      stale = changed
+      update_winbar()
+    end
+  end))
+end))
 
 -- How the footer names <leader>, which differs per config.
 local function leader_name()
@@ -431,5 +453,6 @@ vim.keymap.set("n", "r", function()
   end)
 end, { buffer = diff_buf, desc = "Mark read and go back to the list" })
 vim.keymap.set("n", "w", function() vim.wo.wrap = not vim.wo.wrap end, { buffer = diff_buf, desc = "Toggle line wrap" })
+vim.keymap.set("n", "u", refresh_diff, { buffer = diff_buf, desc = "Reload the diff" })
 
 update_winbar()
