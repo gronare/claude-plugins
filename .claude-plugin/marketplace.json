@@ -15,16 +15,6 @@
       "category": "productivity",
       "source": "./plugins/vault",
       "homepage": "https://github.com/gronare/notes-vault-mcp"
-    },
-    {
-      "name": "herdr-review",
-      "description": "Review a repo's changes in a herdr split next to Claude: filterable file list, unified diffs in nvim, file:line comments typed into Claude's input box, read marks that hold until a file changes. Plus tig in a split for history.",
-      "author": {
-        "name": "Carl Green"
-      },
-      "category": "development",
-      "source": "./plugins/herdr-review",
-      "homepage": "https://herdr.dev"
     }
   ]
 }
