@@ -161,7 +161,7 @@ help() {
   key "ctrl-r" "mark the file read, or unread"
   key "ctrl-h" "show or hide read files"
   key "ctrl-o" "show or hide changes outside the review"
-  key "esc" "close the split"
+  key "ctrl-c" "close the split (or close the pane from herdr)"
   heading "Diff"
   key "c" "comment on the line, or a visual selection"
   key "o" "open the file over the diff, at that line"
@@ -207,7 +207,8 @@ list() {
     --bind "ctrl-r:execute-silent(sh '$script' toggle-read {1})+$reload" \
     --bind "ctrl-h:$(flip read)" \
     --bind "ctrl-o:$(flip other)" \
-    --bind "?:preview(sh '$script' help)" || true
+    --bind "?:preview(sh '$script' help)" \
+    --bind 'esc:ignore,ctrl-q:ignore,ctrl-g:ignore' || true
 }
 
 # Opens a split right of the calling pane, labelled $1, running $2; the split closes when $2 exits.

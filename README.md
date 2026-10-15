@@ -124,7 +124,7 @@ claude plugin install herdr-review@gronare
 | list | ctrl-h | show or hide read files |
 | list | ctrl-o | show or hide changes outside the work under review |
 | list | ? | show every key in the preview pane |
-| list | Esc | close the split |
+| list | ctrl-c | close the split (Esc does nothing, so it cannot close it by accident) |
 | diff | c | comment on the line or visual selection |
 | diff | o | open the real file over the diff, at that line |
 | diff | - | open the file's folder over the diff (neo-tree's float if installed, else netrw) |
