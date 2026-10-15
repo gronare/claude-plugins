@@ -23,8 +23,38 @@ herdr="${HERDR_BIN_PATH:-herdr}"
 tab="$(printf '\t')"
 state="${XDG_STATE_HOME:-$HOME/.local/state}/herdr-review"
 
+# The remote's default branch, e.g. origin/master; origin/HEAD is unset in some older clones.
+default_branch() {
+  git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null && return
+  for candidate in origin/main origin/master; do
+    git show-ref --verify --quiet "refs/remotes/$candidate" && echo "$candidate" && return
+  done
+  return 1
+}
+
+in_linked_worktree() {
+  [ "$(git rev-parse --path-format=absolute --git-dir)" != "$(git rev-parse --path-format=absolute --git-common-dir)" ]
+}
+
+# In a linked worktree all of its work counts: base is where its branch left the default branch, so the review
+# keeps showing the task's commits as the default branch moves on.
+worktree_base() {
+  in_linked_worktree && branch=$(default_branch) && git merge-base HEAD "$branch"
+}
+
+# How the status line names a base: the worktree's fork point by its branch, anything else as given.
+describe_base() {
+  if [ "$1" = "$(worktree_base 2>/dev/null)" ]; then
+    echo "$(git branch --show-current) since $(default_branch) ($(git rev-parse --short "$1"))"
+  else
+    echo "against $1"
+  fi
+}
+
 default_base() {
-  if [ -n "$(git status --porcelain)" ]; then
+  if worktree_base 2>/dev/null; then
+    return
+  elif [ -n "$(git status --porcelain)" ]; then
     echo HEAD
   else
     git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || echo HEAD
@@ -315,7 +345,7 @@ split() {
     echo "$HERDR_PANE_ID" > "$d/agent"
   fi
   echo "$base" > "$d/base"
-  echo "against $base" > "$d/label"
+  describe_base "$base" > "$d/label"
   [ $# -gt 0 ] && printf '%s\n' "$@" > "$d/scope"
   if review_open "$d"; then
     reload_list "$d"
@@ -348,11 +378,17 @@ hook() {
   mkdir -p "$d"
   echo "$session" > "$d/session"
   echo "$HERDR_PANE_ID" > "$d/agent"
-  echo "$head" > "$d/base"
-  echo "since the work started ($(git rev-parse --short HEAD))" > "$d/label"
-  changed_files "$head" | while IFS="$tab" read -r path _; do
-    printf '%s\t%s\n' "$path" "$(fingerprint "$path")"
-  done > "$d/baseline"
+  # A worktree holds only this work, so everything since it left the default branch is in scope.
+  if base=$(worktree_base 2>/dev/null); then
+    echo "$base" > "$d/base"
+    describe_base "$base" > "$d/label"
+  else
+    echo "$head" > "$d/base"
+    echo "since the work started ($(git rev-parse --short HEAD))" > "$d/label"
+    changed_files "$head" | while IFS="$tab" read -r path _; do
+      printf '%s\t%s\n' "$path" "$(fingerprint "$path")"
+    done > "$d/baseline"
+  fi
   open_review "$d" no-focus >/dev/null
 }
 
