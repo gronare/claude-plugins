@@ -99,9 +99,4 @@ and gets its own `init` with the same values.
 
 ## herdr-review
 
-Moved to its own repo and renamed: [gronare/kelpie](https://github.com/gronare/kelpie).
-
-```bash
-claude plugin marketplace add https://github.com/gronare/kelpie
-claude plugin install kelpie@kelpie
-```
+Moved to its own repo and renamed: [gronare/kebbie](https://github.com/gronare/kebbie). Its README says how to install it.
