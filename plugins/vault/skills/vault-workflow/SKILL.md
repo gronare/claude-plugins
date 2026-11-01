@@ -15,7 +15,7 @@ The vault is a folder of markdown notes (an Obsidian vault) reached through the 
 
 ## Where the notes are
 
-- The notes live only in the vault the server is configured for (an S3 bucket or a folder); they are not in the working tree and usually not on this machine. Read one with `read_file(path)`, find others with `search`; never `find`, `mdfind` or `ls` for the vault's files. A wikilink `[[stem]]` is a `search` on the stem, not a path.
+- The notes live only in the vault the server is configured for (a folder, an S3 bucket or a vault server); they are not in the working tree and usually not on this machine. Read one with `read_file(path)`, find others with `search`; never `find`, `mdfind` or `ls` for the vault's files. A wikilink `[[stem]]` is a `search` on the stem, not a path.
 
 ## Searching
 
