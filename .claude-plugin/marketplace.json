@@ -8,13 +8,18 @@
   "plugins": [
     {
       "name": "vault",
-      "description": "Your Obsidian vault (S3 bucket or local folder) as Claude's persistent memory: indexed search, session-start context, a repo log with commit shas, and lint. Bundles the notes-vault-mcp server, two hooks and a workflow skill.",
+      "description": "mindin: your Obsidian vault, in a local folder, an S3 bucket or on a vault server, as Claude's persistent memory: indexed search, session-start context, a repo log with commit shas, and lint.",
       "author": {
         "name": "Carl Green"
       },
       "category": "productivity",
-      "source": "./plugins/vault",
-      "homepage": "https://github.com/gronare/notes-vault-mcp"
+      "source": {
+        "source": "git-subdir",
+        "url": "gronare/mindin",
+        "path": "plugin",
+        "ref": "main"
+      },
+      "homepage": "https://github.com/gronare/mindin"
     }
   ]
 }
