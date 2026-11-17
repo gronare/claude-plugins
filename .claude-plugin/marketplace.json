@@ -15,7 +15,7 @@
       "category": "productivity",
       "source": {
         "source": "git-subdir",
-        "url": "gronare/mindin",
+        "url": "https://github.com/gronare/mindin.git",
         "path": "plugin",
         "ref": "main"
       },
